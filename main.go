@@ -10,9 +10,15 @@ import (
 )
 
 type User struct {
-	Username string
-	Password string
-	Karma    int
+	Username     string
+	Password     string
+	Karma        int
+	DirectMessages []Message
+}
+
+type Message struct {
+	Sender  string
+	Content string
 }
 
 type Subreddit struct {
@@ -38,26 +44,31 @@ type Comment struct {
 }
 
 type Engine struct {
-	Users       map[string]*User
-	Subreddits  map[string]*Subreddit
-	Posts       map[int]*Post
-	Comments    map[int]*Comment
-	VoteHistory map[string]map[int]int
-	Mutex       sync.Mutex
-	PostID      int
-	CommentID   int
+	Users          map[string]*User
+	Subreddits     map[string]*Subreddit
+	Posts          map[int]*Post
+	Comments       map[int]*Comment
+	VoteHistory    map[string]map[int]int
+	Mutex          sync.Mutex
+	PostID         int
+	CommentID      int
+	DisconnectedUsers map[string]bool
 }
 
 func NewEngine() *Engine {
 	return &Engine{
-		Users:       make(map[string]*User),
-		Subreddits:  make(map[string]*Subreddit),
-		Posts:       make(map[int]*Post),
-		Comments:    make(map[int]*Comment),
-		VoteHistory: make(map[string]map[int]int),
+		Users:          make(map[string]*User),
+		Subreddits:     make(map[string]*Subreddit),
+		Posts:          make(map[int]*Post),
+		Comments:       make(map[int]*Comment),
+		VoteHistory:    make(map[string]map[int]int),
+		DisconnectedUsers: make(map[string]bool),
 	}
 }
 
+//Added Code lies here
+
+//START
 // Register a user
 func (e *Engine) RegisterUser(username, password string) string {
 	e.Mutex.Lock()
@@ -167,8 +178,98 @@ func (e *Engine) displayComment(comment *Comment, depth int) string {
 	}
 	return result
 }
+//STOP
 
-// Menu for user interaction
+// --- ADDITIONAL FUNCTIONALITY STARTS HERE ---
+
+// Upvote or Downvote a Post
+func (e *Engine) VotePost(username string, postID, vote int) string {
+	e.Mutex.Lock()
+	defer e.Mutex.Unlock()
+	if _, exists := e.Posts[postID]; !exists {
+		return "Post does not exist."
+	}
+	if e.VoteHistory[username] == nil {
+		e.VoteHistory[username] = make(map[int]int)
+	}
+	if previousVote, voted := e.VoteHistory[username][postID]; voted {
+		e.Posts[postID].Votes -= previousVote
+		e.Users[e.Posts[postID].Author].Karma -= previousVote
+	}
+	e.Posts[postID].Votes += vote
+	e.VoteHistory[username][postID] = vote
+	e.Users[e.Posts[postID].Author].Karma += vote
+	return "Vote registered successfully."
+}
+
+// Send a Direct Message
+func (e *Engine) SendMessage(sender, recipient, content string) string {
+	e.Mutex.Lock()
+	defer e.Mutex.Unlock()
+	if _, exists := e.Users[recipient]; !exists {
+		return "Recipient does not exist."
+	}
+	message := Message{Sender: sender, Content: content}
+	e.Users[recipient].DirectMessages = append(e.Users[recipient].DirectMessages, message)
+	return "Message sent successfully."
+}
+
+// List Direct Messages
+func (e *Engine) ListMessages(username string) string {
+	e.Mutex.Lock()
+	defer e.Mutex.Unlock()
+	if _, exists := e.Users[username]; !exists {
+		return "User does not exist."
+	}
+	messages := e.Users[username].DirectMessages
+	if len(messages) == 0 {
+		return "No messages."
+	}
+	result := fmt.Sprintf("Direct messages for %s:\n", username)
+	for i, msg := range messages {
+		result += fmt.Sprintf("%d. From %s: %s\n", i+1, msg.Sender, msg.Content)
+	}
+	return result
+}
+
+// Simulate User Connection/Disconnection
+func (e *Engine) SimulateConnection(username string, connected bool) string {
+	e.Mutex.Lock()
+	defer e.Mutex.Unlock()
+	if _, exists := e.Users[username]; !exists {
+		return "User does not exist."
+	}
+	e.DisconnectedUsers[username] = !connected
+	if connected {
+		return fmt.Sprintf("%s is now connected.", username)
+	}
+	return fmt.Sprintf("%s is now disconnected.", username)
+}
+
+// Simulate Zipf Distribution for Subreddit Membership
+func (e *Engine) SimulateZipfDistribution() string {
+	e.Mutex.Lock()
+	defer e.Mutex.Unlock()
+	for i := 1; i <= 10; i++ {
+		subredditName := fmt.Sprintf("subreddit_%d", i)
+		if _, exists := e.Subreddits[subredditName]; !exists {
+			e.Subreddits[subredditName] = &Subreddit{
+				Name:    subredditName,
+				Members: make(map[string]bool),
+				Posts:   []*Post{},
+			}
+		}
+		members := 100 / i // Zipf-like distribution
+		for j := 1; j <= members; j++ {
+			username := fmt.Sprintf("user_%d", j)
+			e.Subreddits[subredditName].Members[username] = true
+		}
+	}
+	return "Simulated Zipf distribution for subreddit membership."
+}
+
+// --- MENU INTEGRATION ---
+
 func mainMenu(engine *Engine) {
 	reader := bufio.NewReader(os.Stdin)
 	for {
@@ -179,7 +280,12 @@ func mainMenu(engine *Engine) {
 		fmt.Println("4. Add Comment")
 		fmt.Println("5. Reply to Comment")
 		fmt.Println("6. View Subreddit Feed")
-		fmt.Println("7. Exit")
+		fmt.Println("7. Upvote/Downvote Post")
+		fmt.Println("8. Send Direct Message")
+		fmt.Println("9. List Direct Messages")
+		fmt.Println("10. Simulate Connection/Disconnection")
+		fmt.Println("11. Simulate Zipf Distribution")
+		fmt.Println("12. Exit")
 		fmt.Print("Enter your choice: ")
 		choice, _ := reader.ReadString('\n')
 		choice = strings.TrimSpace(choice)
@@ -240,6 +346,43 @@ func mainMenu(engine *Engine) {
 			subreddit = strings.TrimSpace(subreddit)
 			fmt.Println(engine.GetFeed(subreddit))
 		case "7":
+			fmt.Print("Enter post ID: ")
+			postIDStr, _ := reader.ReadString('\n')
+			postID, _ := strconv.Atoi(strings.TrimSpace(postIDStr))
+			fmt.Print("Enter username: ")
+			username, _ := reader.ReadString('\n')
+			username = strings.TrimSpace(username)
+			fmt.Print("Enter vote (1 for upvote, -1 for downvote): ")
+			voteStr, _ := reader.ReadString('\n')
+			vote, _ := strconv.Atoi(strings.TrimSpace(voteStr))
+			fmt.Println(engine.VotePost(username, postID, vote))
+		case "8":
+			fmt.Print("Enter sender username: ")
+			sender, _ := reader.ReadString('\n')
+			sender = strings.TrimSpace(sender)
+			fmt.Print("Enter recipient username: ")
+			recipient, _ := reader.ReadString('\n')
+			recipient = strings.TrimSpace(recipient)
+			fmt.Print("Enter message content: ")
+			content, _ := reader.ReadString('\n')
+			content = strings.TrimSpace(content)
+			fmt.Println(engine.SendMessage(sender, recipient, content))
+		case "9":
+			fmt.Print("Enter username: ")
+			username, _ := reader.ReadString('\n')
+			username = strings.TrimSpace(username)
+			fmt.Println(engine.ListMessages(username))
+		case "10":
+			fmt.Print("Enter username: ")
+			username, _ := reader.ReadString('\n')
+			username = strings.TrimSpace(username)
+			fmt.Print("Enter connection status (true for connect, false for disconnect): ")
+			statusStr, _ := reader.ReadString('\n')
+			connected, _ := strconv.ParseBool(strings.TrimSpace(statusStr))
+			fmt.Println(engine.SimulateConnection(username, connected))
+		case "11":
+			fmt.Println(engine.SimulateZipfDistribution())
+		case "12":
 			fmt.Println("Exiting...")
 			return
 		default:
