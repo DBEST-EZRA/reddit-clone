@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"math/rand"
 	"os"
 	"strconv"
 	"strings"
@@ -250,7 +251,9 @@ func (e *Engine) SimulateConnection(username string, connected bool) string {
 func (e *Engine) SimulateZipfDistribution() string {
 	e.Mutex.Lock()
 	defer e.Mutex.Unlock()
+	postID := e.PostID
 	for i := 1; i <= 10; i++ {
+		// Create or fetch subreddit
 		subredditName := fmt.Sprintf("subreddit_%d", i)
 		if _, exists := e.Subreddits[subredditName]; !exists {
 			e.Subreddits[subredditName] = &Subreddit{
@@ -259,14 +262,63 @@ func (e *Engine) SimulateZipfDistribution() string {
 				Posts:   []*Post{},
 			}
 		}
-		members := 100 / i // Zipf-like distribution
+		// Simulate Zipf distribution for membership
+		members := 100 / i // Higher rank => more members
 		for j := 1; j <= members; j++ {
 			username := fmt.Sprintf("user_%d", j)
+			if _, exists := e.Users[username]; !exists {
+				e.Users[username] = &User{Username: username, Karma: 0}
+			}
 			e.Subreddits[subredditName].Members[username] = true
 		}
+		// Increase post frequency for popular subreddits
+		postCount := members / 10
+		for p := 0; p < postCount; p++ {
+			author := fmt.Sprintf("user_%d", rand.Intn(members)+1)
+			content := fmt.Sprintf("Post %d in %s by %s", postID, subredditName, author)
+			post := &Post{
+				ID:       postID,
+				Author:   author,
+				Content:  content,
+				Votes:    rand.Intn(100), // Random initial votes
+				Comments: []*Comment{},
+			}
+			e.Subreddits[subredditName].Posts = append(e.Subreddits[subredditName].Posts, post)
+			e.Posts[postID] = post
+			postID++
+		}
 	}
-	return "Simulated Zipf distribution for subreddit membership."
+
+	// Add re-posting
+	for _, subreddit := range e.Subreddits {
+		if len(subreddit.Posts) > 0 {
+			repostCount := len(subreddit.Posts) / 5 // 20% of posts will be re-posts
+			for r := 0; r < repostCount; r++ {
+				// Randomly select a post from another subreddit
+				sourceSubredditName := fmt.Sprintf("subreddit_%d", rand.Intn(10)+1)
+				if sourceSubredditName != subreddit.Name {
+					sourceSubreddit := e.Subreddits[sourceSubredditName]
+					if len(sourceSubreddit.Posts) > 0 {
+						randomPost := sourceSubreddit.Posts[rand.Intn(len(sourceSubreddit.Posts))]
+						repost := &Post{
+							ID:       postID,
+							Author:   randomPost.Author,
+							Content:  "[Repost] " + randomPost.Content,
+							Votes:    randomPost.Votes / 2, // Reposts get fewer votes initially
+							Comments: []*Comment{},
+						}
+						subreddit.Posts = append(subreddit.Posts, repost)
+						e.Posts[postID] = repost
+						postID++
+					}
+				}
+			}
+		}
+	}
+	e.PostID = postID
+	return "Simulated Zipf distribution with enhanced posting and re-posting."
 }
+
 
 // --- MENU INTEGRATION ---
 
