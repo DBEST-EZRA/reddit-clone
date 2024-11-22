@@ -1,13 +1,14 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
-	"math/rand"
+	"os"
+	"strconv"
+	"strings"
 	"sync"
-	"time"
 )
 
-// Structs for core entities
 type User struct {
 	Username string
 	Password string
@@ -36,19 +37,17 @@ type Comment struct {
 	Replies  []*Comment
 }
 
-// Engine struct to store data
 type Engine struct {
 	Users       map[string]*User
 	Subreddits  map[string]*Subreddit
 	Posts       map[int]*Post
 	Comments    map[int]*Comment
-	VoteHistory map[string]map[int]int // Track user votes on posts and comments
+	VoteHistory map[string]map[int]int
 	Mutex       sync.Mutex
 	PostID      int
 	CommentID   int
 }
 
-// Initialize the Engine
 func NewEngine() *Engine {
 	return &Engine{
 		Users:       make(map[string]*User),
@@ -104,22 +103,42 @@ func (e *Engine) CreatePost(subreddit, author, content string) string {
 	return fmt.Sprintf("Post created successfully with ID %d.", e.PostID)
 }
 
-// Simulate voting
-func (e *Engine) VotePost(username string, postID, vote int) string {
+// Add a comment to a post
+func (e *Engine) AddComment(postID int, author, content string) string {
 	e.Mutex.Lock()
 	defer e.Mutex.Unlock()
 	if _, exists := e.Posts[postID]; !exists {
 		return "Post does not exist."
 	}
-	if e.VoteHistory[username] == nil {
-		e.VoteHistory[username] = make(map[int]int)
+	e.CommentID++
+	comment := &Comment{
+		ID:      e.CommentID,
+		Author:  author,
+		Content: content,
+		Votes:   0,
 	}
-	if previousVote, voted := e.VoteHistory[username][postID]; voted {
-		e.Posts[postID].Votes -= previousVote
+	e.Posts[postID].Comments = append(e.Posts[postID].Comments, comment)
+	e.Comments[e.CommentID] = comment
+	return fmt.Sprintf("Comment added successfully with ID %d.", e.CommentID)
+}
+
+// Reply to a comment
+func (e *Engine) ReplyToComment(commentID int, author, content string) string {
+	e.Mutex.Lock()
+	defer e.Mutex.Unlock()
+	if _, exists := e.Comments[commentID]; !exists {
+		return "Comment does not exist."
 	}
-	e.Posts[postID].Votes += vote
-	e.VoteHistory[username][postID] = vote
-	return "Vote registered successfully."
+	e.CommentID++
+	reply := &Comment{
+		ID:      e.CommentID,
+		Author:  author,
+		Content: content,
+		Votes:   0,
+	}
+	e.Comments[commentID].Replies = append(e.Comments[commentID].Replies, reply)
+	e.Comments[e.CommentID] = reply
+	return fmt.Sprintf("Reply added successfully with ID %d.", e.CommentID)
 }
 
 // Display a subreddit feed
@@ -132,55 +151,104 @@ func (e *Engine) GetFeed(subreddit string) string {
 	feed := fmt.Sprintf("Feed for Subreddit: %s\n", subreddit)
 	for _, post := range e.Subreddits[subreddit].Posts {
 		feed += fmt.Sprintf("Post ID: %d | Author: %s | Votes: %d | Content: %s\n", post.ID, post.Author, post.Votes, post.Content)
+		for _, comment := range post.Comments {
+			feed += e.displayComment(comment, 1)
+		}
 	}
 	return feed
 }
 
-// Simulate user behavior
-func SimulateUser(engine *Engine, id int, wg *sync.WaitGroup) {
-	defer wg.Done()
-	username := fmt.Sprintf("user_%d", id)
-	password := "password"
-	engine.RegisterUser(username, password)
-
-	// Join or create subreddits
-	for i := 0; i < rand.Intn(5)+1; i++ {
-		subreddit := fmt.Sprintf("subreddit_%d", rand.Intn(10)+1)
-		engine.CreateSubreddit(subreddit, username)
+// Recursive function to display comments and replies
+func (e *Engine) displayComment(comment *Comment, depth int) string {
+	indent := strings.Repeat("  ", depth)
+	result := fmt.Sprintf("%sComment ID: %d | Author: %s | Votes: %d | Content: %s\n", indent, comment.ID, comment.Author, comment.Votes, comment.Content)
+	for _, reply := range comment.Replies {
+		result += e.displayComment(reply, depth+1)
 	}
+	return result
+}
 
-	// Post content
-	for i := 0; i < rand.Intn(5)+1; i++ {
-		subreddit := fmt.Sprintf("subreddit_%d", rand.Intn(10)+1)
-		content := fmt.Sprintf("Post from %s", username)
-		engine.CreatePost(subreddit, username, content)
-		time.Sleep(time.Millisecond * time.Duration(rand.Intn(500)))
-	}
+// Menu for user interaction
+func mainMenu(engine *Engine) {
+	reader := bufio.NewReader(os.Stdin)
+	for {
+		fmt.Println("\n--- Reddit Clone ---")
+		fmt.Println("1. Register User")
+		fmt.Println("2. Create Subreddit")
+		fmt.Println("3. Create Post")
+		fmt.Println("4. Add Comment")
+		fmt.Println("5. Reply to Comment")
+		fmt.Println("6. View Subreddit Feed")
+		fmt.Println("7. Exit")
+		fmt.Print("Enter your choice: ")
+		choice, _ := reader.ReadString('\n')
+		choice = strings.TrimSpace(choice)
 
-	// Vote on posts
-	for i := 0; i < rand.Intn(10)+1; i++ {
-		postID := rand.Intn(50) + 1
-		vote := rand.Intn(2)*2 - 1 // Either -1 or +1
-		engine.VotePost(username, postID, vote)
-		time.Sleep(time.Millisecond * time.Duration(rand.Intn(500)))
+		switch choice {
+		case "1":
+			fmt.Print("Enter username: ")
+			username, _ := reader.ReadString('\n')
+			username = strings.TrimSpace(username)
+			fmt.Print("Enter password: ")
+			password, _ := reader.ReadString('\n')
+			password = strings.TrimSpace(password)
+			fmt.Println(engine.RegisterUser(username, password))
+		case "2":
+			fmt.Print("Enter subreddit name: ")
+			name, _ := reader.ReadString('\n')
+			name = strings.TrimSpace(name)
+			fmt.Print("Enter creator username: ")
+			creator, _ := reader.ReadString('\n')
+			creator = strings.TrimSpace(creator)
+			fmt.Println(engine.CreateSubreddit(name, creator))
+		case "3":
+			fmt.Print("Enter subreddit name: ")
+			subreddit, _ := reader.ReadString('\n')
+			subreddit = strings.TrimSpace(subreddit)
+			fmt.Print("Enter author username: ")
+			author, _ := reader.ReadString('\n')
+			author = strings.TrimSpace(author)
+			fmt.Print("Enter post content: ")
+			content, _ := reader.ReadString('\n')
+			content = strings.TrimSpace(content)
+			fmt.Println(engine.CreatePost(subreddit, author, content))
+		case "4":
+			fmt.Print("Enter post ID: ")
+			postIDStr, _ := reader.ReadString('\n')
+			postID, _ := strconv.Atoi(strings.TrimSpace(postIDStr))
+			fmt.Print("Enter author username: ")
+			author, _ := reader.ReadString('\n')
+			author = strings.TrimSpace(author)
+			fmt.Print("Enter comment content: ")
+			content, _ := reader.ReadString('\n')
+			content = strings.TrimSpace(content)
+			fmt.Println(engine.AddComment(postID, author, content))
+		case "5":
+			fmt.Print("Enter comment ID: ")
+			commentIDStr, _ := reader.ReadString('\n')
+			commentID, _ := strconv.Atoi(strings.TrimSpace(commentIDStr))
+			fmt.Print("Enter author username: ")
+			author, _ := reader.ReadString('\n')
+			author = strings.TrimSpace(author)
+			fmt.Print("Enter reply content: ")
+			content, _ := reader.ReadString('\n')
+			content = strings.TrimSpace(content)
+			fmt.Println(engine.ReplyToComment(commentID, author, content))
+		case "6":
+			fmt.Print("Enter subreddit name: ")
+			subreddit, _ := reader.ReadString('\n')
+			subreddit = strings.TrimSpace(subreddit)
+			fmt.Println(engine.GetFeed(subreddit))
+		case "7":
+			fmt.Println("Exiting...")
+			return
+		default:
+			fmt.Println("Invalid choice, please try again.")
+		}
 	}
 }
 
 func main() {
-	rand.Seed(time.Now().UnixNano())
 	engine := NewEngine()
-
-	var wg sync.WaitGroup
-	numUsers := 100
-
-	// Simulate multiple users
-	for i := 1; i <= numUsers; i++ {
-		wg.Add(1)
-		go SimulateUser(engine, i, &wg)
-	}
-
-	wg.Wait()
-
-	// Display results for a specific subreddit
-	fmt.Println(engine.GetFeed("subreddit_1"))
+	mainMenu(engine)
 }
