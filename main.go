@@ -67,10 +67,8 @@ func NewEngine() *Engine {
 	}
 }
 
-//Added Code lies here
 
-//START
-// Register a user
+// Registering user
 func (e *Engine) RegisterUser(username, password string) string {
 	e.Mutex.Lock()
 	defer e.Mutex.Unlock()
@@ -81,7 +79,7 @@ func (e *Engine) RegisterUser(username, password string) string {
 	return "User registered successfully."
 }
 
-// Create a subreddit
+// Creating subreddit
 func (e *Engine) CreateSubreddit(name, creator string) string {
 	e.Mutex.Lock()
 	defer e.Mutex.Unlock()
@@ -96,7 +94,7 @@ func (e *Engine) CreateSubreddit(name, creator string) string {
 	return "Subreddit created successfully."
 }
 
-// Post to a subreddit
+// Posting to subreddit
 func (e *Engine) CreatePost(subreddit, author, content string) string {
 	e.Mutex.Lock()
 	defer e.Mutex.Unlock()
@@ -115,7 +113,7 @@ func (e *Engine) CreatePost(subreddit, author, content string) string {
 	return fmt.Sprintf("Post created successfully with ID %d.", e.PostID)
 }
 
-// Add a comment to a post
+// Commenting to a post
 func (e *Engine) AddComment(postID int, author, content string) string {
 	e.Mutex.Lock()
 	defer e.Mutex.Unlock()
@@ -134,7 +132,7 @@ func (e *Engine) AddComment(postID int, author, content string) string {
 	return fmt.Sprintf("Comment added successfully with ID %d.", e.CommentID)
 }
 
-// Reply to a comment
+// Replying to a comment
 func (e *Engine) ReplyToComment(commentID int, author, content string) string {
 	e.Mutex.Lock()
 	defer e.Mutex.Unlock()
@@ -153,7 +151,7 @@ func (e *Engine) ReplyToComment(commentID int, author, content string) string {
 	return fmt.Sprintf("Reply added successfully with ID %d.", e.CommentID)
 }
 
-// Display a subreddit feed
+// Printing out subreddit feed
 func (e *Engine) GetFeed(subreddit string) string {
 	e.Mutex.Lock()
 	defer e.Mutex.Unlock()
@@ -170,7 +168,7 @@ func (e *Engine) GetFeed(subreddit string) string {
 	return feed
 }
 
-// Recursive function to display comments and replies
+// Displaying comments and replies
 func (e *Engine) displayComment(comment *Comment, depth int) string {
 	indent := strings.Repeat("  ", depth)
 	result := fmt.Sprintf("%sComment ID: %d | Author: %s | Votes: %d | Content: %s\n", indent, comment.ID, comment.Author, comment.Votes, comment.Content)
@@ -179,11 +177,9 @@ func (e *Engine) displayComment(comment *Comment, depth int) string {
 	}
 	return result
 }
-//STOP
 
-// --- ADDITIONAL FUNCTIONALITY STARTS HERE ---
 
-// Upvote or Downvote a Post
+// Upvote or Downvote 
 func (e *Engine) VotePost(username string, postID, vote int) string {
 	e.Mutex.Lock()
 	defer e.Mutex.Unlock()
@@ -203,7 +199,7 @@ func (e *Engine) VotePost(username string, postID, vote int) string {
 	return "Vote registered successfully."
 }
 
-// Send a Direct Message
+// Sending Direct Message
 func (e *Engine) SendMessage(sender, recipient, content string) string {
 	e.Mutex.Lock()
 	defer e.Mutex.Unlock()
@@ -215,7 +211,7 @@ func (e *Engine) SendMessage(sender, recipient, content string) string {
 	return "Message sent successfully."
 }
 
-// List Direct Messages
+// Listing all Direct Messages
 func (e *Engine) ListMessages(username string) string {
 	e.Mutex.Lock()
 	defer e.Mutex.Unlock()
@@ -233,7 +229,7 @@ func (e *Engine) ListMessages(username string) string {
 	return result
 }
 
-// Simulate User Connection/Disconnection
+// Simulating a user Connection or Disconnection
 func (e *Engine) SimulateConnection(username string, connected bool) string {
 	e.Mutex.Lock()
 	defer e.Mutex.Unlock()
@@ -247,13 +243,12 @@ func (e *Engine) SimulateConnection(username string, connected bool) string {
 	return fmt.Sprintf("%s is now disconnected.", username)
 }
 
-// Simulate Zipf Distribution for Subreddit Membership
+// Simulating Zipf Distribution for Subreddit Membership function
 func (e *Engine) SimulateZipfDistribution() string {
 	e.Mutex.Lock()
 	defer e.Mutex.Unlock()
 	postID := e.PostID
 	for i := 1; i <= 10; i++ {
-		// Create or fetch subreddit
 		subredditName := fmt.Sprintf("subreddit_%d", i)
 		if _, exists := e.Subreddits[subredditName]; !exists {
 			e.Subreddits[subredditName] = &Subreddit{
@@ -262,8 +257,8 @@ func (e *Engine) SimulateZipfDistribution() string {
 				Posts:   []*Post{},
 			}
 		}
-		// Simulate Zipf distribution for membership
-		members := 100 / i // Higher rank => more members
+		// Simulating Zipf distribution for membership
+		members := 100 / i // more members for higher rank
 		for j := 1; j <= members; j++ {
 			username := fmt.Sprintf("user_%d", j)
 			if _, exists := e.Users[username]; !exists {
@@ -271,7 +266,7 @@ func (e *Engine) SimulateZipfDistribution() string {
 			}
 			e.Subreddits[subredditName].Members[username] = true
 		}
-		// Increase post frequency for popular subreddits
+		// Increasing post frequency for the popular subreddits
 		postCount := members / 10
 		for p := 0; p < postCount; p++ {
 			author := fmt.Sprintf("user_%d", rand.Intn(members)+1)
@@ -280,7 +275,7 @@ func (e *Engine) SimulateZipfDistribution() string {
 				ID:       postID,
 				Author:   author,
 				Content:  content,
-				Votes:    rand.Intn(100), // Random initial votes
+				Votes:    rand.Intn(100), 
 				Comments: []*Comment{},
 			}
 			e.Subreddits[subredditName].Posts = append(e.Subreddits[subredditName].Posts, post)
@@ -289,12 +284,12 @@ func (e *Engine) SimulateZipfDistribution() string {
 		}
 	}
 
-	// Add re-posting
+	// Reposting
 	for _, subreddit := range e.Subreddits {
 		if len(subreddit.Posts) > 0 {
-			repostCount := len(subreddit.Posts) / 5 // 20% of posts will be re-posts
+			repostCount := len(subreddit.Posts) / 5 
 			for r := 0; r < repostCount; r++ {
-				// Randomly select a post from another subreddit
+				// Randomly selecting a post from another subreddit
 				sourceSubredditName := fmt.Sprintf("subreddit_%d", rand.Intn(10)+1)
 				if sourceSubredditName != subreddit.Name {
 					sourceSubreddit := e.Subreddits[sourceSubredditName]
@@ -304,7 +299,7 @@ func (e *Engine) SimulateZipfDistribution() string {
 							ID:       postID,
 							Author:   randomPost.Author,
 							Content:  "[Repost] " + randomPost.Content,
-							Votes:    randomPost.Votes / 2, // Reposts get fewer votes initially
+							Votes:    randomPost.Votes / 2, 
 							Comments: []*Comment{},
 						}
 						subreddit.Posts = append(subreddit.Posts, repost)
@@ -320,12 +315,12 @@ func (e *Engine) SimulateZipfDistribution() string {
 }
 
 
-// --- MENU INTEGRATION ---
+// TABLE OF CONTENTS
 
 func mainMenu(engine *Engine) {
 	reader := bufio.NewReader(os.Stdin)
 	for {
-		fmt.Println("\n--- Reddit Clone ---")
+		fmt.Println("\n--- REDDIT CLONE ---")
 		fmt.Println("1. Register User")
 		fmt.Println("2. Create Subreddit")
 		fmt.Println("3. Create Post")
