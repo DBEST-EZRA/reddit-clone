@@ -238,9 +238,6 @@ func (e *Engine) ReplyToComment(commentID int, author, content string) string {
 	return fmt.Sprintf("Reply added successfully with ID %d.", e.CommentID)
 }
 
-//Other Functions HERE Start
-//Other Functions HERE Start
-
 // Printing out subreddit feed
 func (e *Engine) GetFeedHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
@@ -495,14 +492,14 @@ func (e *Engine) SimulateZipfDistribution() string {
 }
 
 
-// Utility Function to Write JSON Response
+// Function to Write JSON Response
 func writeResponse(w http.ResponseWriter, response string) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"message": response})
 }
 
 
-// Main Function to Start the Server
+// Function to Start the Server
 func main() {
 	engine := NewEngine()
 
