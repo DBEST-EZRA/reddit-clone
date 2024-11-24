@@ -494,10 +494,6 @@ func (e *Engine) SimulateZipfDistribution() string {
 	return "Simulated Zipf distribution with enhanced posting and re-posting."
 }
 
-//Other Functions HERE END
-
-
-//Other Functions HERE Stop
 
 // Utility Function to Write JSON Response
 func writeResponse(w http.ResponseWriter, response string) {
@@ -515,7 +511,6 @@ func main() {
 	http.HandleFunc("/create_post", engine.CreatePostHandler) //POST http://localhost:8080/create_post?subreddit=golang&author=user1&content=HelloWorld
 	http.HandleFunc("/add_comment", engine.AddCommentHandler) //POST http://localhost:8080/add_comment?postID=1&author=user1&content=NicePost
 	http.HandleFunc("/reply_to_comment", engine.ReplyToCommentHandler) //POST http://localhost:8080/reply_to_comment?commentID=1&author=user1&content=heey
-	//other
 	http.HandleFunc("/get_feed", engine.GetFeedHandler) //GET http://localhost:8080/get_feed?subreddit=golang
 	http.HandleFunc("/vote_post", engine.VotePostHandler) //POST http://localhost:8080/vote_post?username=user1&postID=1&vote=1
 	http.HandleFunc("/send_message", engine.SendMessageHandler) //POST http://localhost:8080/send_message?sender=user1&recipient=user1&content=Hey there!
