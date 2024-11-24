@@ -1,19 +1,19 @@
 package main
 
 import (
-	"bufio"
+	"encoding/json"
 	"fmt"
 	"math/rand"
-	"os"
+	"net/http"
 	"strconv"
 	"strings"
 	"sync"
 )
 
 type User struct {
-	Username     string
-	Password     string
-	Karma        int
+	Username      string
+	Password      string
+	Karma         int
 	DirectMessages []Message
 }
 
@@ -45,30 +45,44 @@ type Comment struct {
 }
 
 type Engine struct {
-	Users          map[string]*User
-	Subreddits     map[string]*Subreddit
-	Posts          map[int]*Post
-	Comments       map[int]*Comment
-	VoteHistory    map[string]map[int]int
-	Mutex          sync.Mutex
-	PostID         int
-	CommentID      int
+	Users             map[string]*User
+	Subreddits        map[string]*Subreddit
+	Posts             map[int]*Post
+	Comments          map[int]*Comment
+	VoteHistory       map[string]map[int]int
+	Mutex             sync.Mutex
+	PostID            int
+	CommentID         int
 	DisconnectedUsers map[string]bool
 }
 
 func NewEngine() *Engine {
 	return &Engine{
-		Users:          make(map[string]*User),
-		Subreddits:     make(map[string]*Subreddit),
-		Posts:          make(map[int]*Post),
-		Comments:       make(map[int]*Comment),
-		VoteHistory:    make(map[string]map[int]int),
+		Users:             make(map[string]*User),
+		Subreddits:        make(map[string]*Subreddit),
+		Posts:             make(map[int]*Post),
+		Comments:          make(map[int]*Comment),
+		VoteHistory:       make(map[string]map[int]int),
 		DisconnectedUsers: make(map[string]bool),
 	}
 }
 
+// Register User API Endpoint
+func (e *Engine) RegisterUserHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Invalid method", http.StatusMethodNotAllowed)
+		return
+	}
+	username := r.URL.Query().Get("username")
+	password := r.URL.Query().Get("password")
+	if username == "" || password == "" {
+		http.Error(w, "Username and password are required", http.StatusBadRequest)
+		return
+	}
+	response := e.RegisterUser(username, password)
+	writeResponse(w, response)
+}
 
-// Registering user
 func (e *Engine) RegisterUser(username, password string) string {
 	e.Mutex.Lock()
 	defer e.Mutex.Unlock()
@@ -79,7 +93,22 @@ func (e *Engine) RegisterUser(username, password string) string {
 	return "User registered successfully."
 }
 
-// Creating subreddit
+// Create Subreddit API Endpoint
+func (e *Engine) CreateSubredditHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Invalid method", http.StatusMethodNotAllowed)
+		return
+	}
+	name := r.URL.Query().Get("name")
+	creator := r.URL.Query().Get("creator")
+	if name == "" || creator == "" {
+		http.Error(w, "Subreddit name and creator are required", http.StatusBadRequest)
+		return
+	}
+	response := e.CreateSubreddit(name, creator)
+	writeResponse(w, response)
+}
+
 func (e *Engine) CreateSubreddit(name, creator string) string {
 	e.Mutex.Lock()
 	defer e.Mutex.Unlock()
@@ -94,7 +123,23 @@ func (e *Engine) CreateSubreddit(name, creator string) string {
 	return "Subreddit created successfully."
 }
 
-// Posting to subreddit
+// Create Post API Endpoint
+func (e *Engine) CreatePostHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Invalid method", http.StatusMethodNotAllowed)
+		return
+	}
+	subreddit := r.URL.Query().Get("subreddit")
+	author := r.URL.Query().Get("author")
+	content := r.URL.Query().Get("content")
+	if subreddit == "" || author == "" || content == "" {
+		http.Error(w, "Subreddit, author, and content are required", http.StatusBadRequest)
+		return
+	}
+	response := e.CreatePost(subreddit, author, content)
+	writeResponse(w, response)
+}
+
 func (e *Engine) CreatePost(subreddit, author, content string) string {
 	e.Mutex.Lock()
 	defer e.Mutex.Unlock()
@@ -113,7 +158,28 @@ func (e *Engine) CreatePost(subreddit, author, content string) string {
 	return fmt.Sprintf("Post created successfully with ID %d.", e.PostID)
 }
 
-// Commenting to a post
+// Add Comment API Endpoint
+func (e *Engine) AddCommentHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Invalid method", http.StatusMethodNotAllowed)
+		return
+	}
+	postIDStr := r.URL.Query().Get("postID")
+	author := r.URL.Query().Get("author")
+	content := r.URL.Query().Get("content")
+	postID, err := strconv.Atoi(postIDStr)
+	if err != nil {
+		http.Error(w, "Invalid post ID", http.StatusBadRequest)
+		return
+	}
+	if author == "" || content == "" {
+		http.Error(w, "Author and content are required", http.StatusBadRequest)
+		return
+	}
+	response := e.AddComment(postID, author, content)
+	writeResponse(w, response)
+}
+
 func (e *Engine) AddComment(postID int, author, content string) string {
 	e.Mutex.Lock()
 	defer e.Mutex.Unlock()
@@ -132,7 +198,28 @@ func (e *Engine) AddComment(postID int, author, content string) string {
 	return fmt.Sprintf("Comment added successfully with ID %d.", e.CommentID)
 }
 
-// Replying to a comment
+// Reply to Comment API Endpoint
+func (e *Engine) ReplyToCommentHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Invalid method", http.StatusMethodNotAllowed)
+		return
+	}
+	commentIDStr := r.URL.Query().Get("commentID")
+	author := r.URL.Query().Get("author")
+	content := r.URL.Query().Get("content")
+	commentID, err := strconv.Atoi(commentIDStr)
+	if err != nil {
+		http.Error(w, "Invalid comment ID", http.StatusBadRequest)
+		return
+	}
+	if author == "" || content == "" {
+		http.Error(w, "Author and content are required", http.StatusBadRequest)
+		return
+	}
+	response := e.ReplyToComment(commentID, author, content)
+	writeResponse(w, response)
+}
+
 func (e *Engine) ReplyToComment(commentID int, author, content string) string {
 	e.Mutex.Lock()
 	defer e.Mutex.Unlock()
@@ -151,7 +238,24 @@ func (e *Engine) ReplyToComment(commentID int, author, content string) string {
 	return fmt.Sprintf("Reply added successfully with ID %d.", e.CommentID)
 }
 
+//Other Functions HERE Start
+//Other Functions HERE Start
+
 // Printing out subreddit feed
+func (e *Engine) GetFeedHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Invalid method", http.StatusMethodNotAllowed)
+		return
+	}
+	subreddit := r.URL.Query().Get("subreddit")
+	if subreddit == "" {
+		http.Error(w, "Subreddit name is required", http.StatusBadRequest)
+		return
+	}
+	response := e.GetFeed(subreddit)
+	writeResponse(w, response)
+}
+
 func (e *Engine) GetFeed(subreddit string) string {
 	e.Mutex.Lock()
 	defer e.Mutex.Unlock()
@@ -178,8 +282,29 @@ func (e *Engine) displayComment(comment *Comment, depth int) string {
 	return result
 }
 
-
 // Upvote or Downvote 
+func (e *Engine) VotePostHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Invalid method", http.StatusMethodNotAllowed)
+		return
+	}
+	username := r.URL.Query().Get("username")
+	postIDStr := r.URL.Query().Get("postID")
+	voteStr := r.URL.Query().Get("vote")
+	postID, err := strconv.Atoi(postIDStr)
+	vote, err2 := strconv.Atoi(voteStr)
+	if err != nil || err2 != nil {
+		http.Error(w, "Invalid post ID or vote", http.StatusBadRequest)
+		return
+	}
+	if username == "" {
+		http.Error(w, "Username is required", http.StatusBadRequest)
+		return
+	}
+	response := e.VotePost(username, postID, vote)
+	writeResponse(w, response)
+}
+
 func (e *Engine) VotePost(username string, postID, vote int) string {
 	e.Mutex.Lock()
 	defer e.Mutex.Unlock()
@@ -200,6 +325,22 @@ func (e *Engine) VotePost(username string, postID, vote int) string {
 }
 
 // Sending Direct Message
+func (e *Engine) SendMessageHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Invalid method", http.StatusMethodNotAllowed)
+		return
+	}
+	sender := r.URL.Query().Get("sender")
+	recipient := r.URL.Query().Get("recipient")
+	content := r.URL.Query().Get("content")
+	if sender == "" || recipient == "" || content == "" {
+		http.Error(w, "Sender, recipient, and content are required", http.StatusBadRequest)
+		return
+	}
+	response := e.SendMessage(sender, recipient, content)
+	writeResponse(w, response)
+}
+
 func (e *Engine) SendMessage(sender, recipient, content string) string {
 	e.Mutex.Lock()
 	defer e.Mutex.Unlock()
@@ -212,6 +353,20 @@ func (e *Engine) SendMessage(sender, recipient, content string) string {
 }
 
 // Listing all Direct Messages
+func (e *Engine) ListMessagesHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Invalid method", http.StatusMethodNotAllowed)
+		return
+	}
+	username := r.URL.Query().Get("username")
+	if username == "" {
+		http.Error(w, "Username is required", http.StatusBadRequest)
+		return
+	}
+	response := e.ListMessages(username)
+	writeResponse(w, response)
+}
+
 func (e *Engine) ListMessages(username string) string {
 	e.Mutex.Lock()
 	defer e.Mutex.Unlock()
@@ -230,6 +385,22 @@ func (e *Engine) ListMessages(username string) string {
 }
 
 // Simulating a user Connection or Disconnection
+func (e *Engine) SimulateConnectionHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Invalid method", http.StatusMethodNotAllowed)
+		return
+	}
+	username := r.URL.Query().Get("username")
+	connectedStr := r.URL.Query().Get("connected")
+	connected, err := strconv.ParseBool(connectedStr)
+	if err != nil || username == "" {
+		http.Error(w, "Invalid connection status or username", http.StatusBadRequest)
+		return
+	}
+	response := e.SimulateConnection(username, connected)
+	writeResponse(w, response)
+}
+
 func (e *Engine) SimulateConnection(username string, connected bool) string {
 	e.Mutex.Lock()
 	defer e.Mutex.Unlock()
@@ -244,6 +415,15 @@ func (e *Engine) SimulateConnection(username string, connected bool) string {
 }
 
 // Simulating Zipf Distribution for Subreddit Membership function
+func (e *Engine) SimulateZipfDistributionHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Invalid method", http.StatusMethodNotAllowed)
+		return
+	}
+	response := e.SimulateZipfDistribution()
+	writeResponse(w, response)
+}
+
 func (e *Engine) SimulateZipfDistribution() string {
 	e.Mutex.Lock()
 	defer e.Mutex.Unlock()
@@ -314,131 +494,35 @@ func (e *Engine) SimulateZipfDistribution() string {
 	return "Simulated Zipf distribution with enhanced posting and re-posting."
 }
 
+//Other Functions HERE END
 
-// TABLE OF CONTENTS
 
-func mainMenu(engine *Engine) {
-	reader := bufio.NewReader(os.Stdin)
-	for {
-		fmt.Println("\n--- REDDIT CLONE ---")
-		fmt.Println("1. Register User")
-		fmt.Println("2. Create Subreddit")
-		fmt.Println("3. Create Post")
-		fmt.Println("4. Add Comment")
-		fmt.Println("5. Reply to Comment")
-		fmt.Println("6. View Subreddit Feed")
-		fmt.Println("7. Upvote/Downvote Post")
-		fmt.Println("8. Send Direct Message")
-		fmt.Println("9. List Direct Messages")
-		fmt.Println("10. Simulate Connection/Disconnection")
-		fmt.Println("11. Simulate Zipf Distribution")
-		fmt.Println("12. Exit")
-		fmt.Print("Enter your choice: ")
-		choice, _ := reader.ReadString('\n')
-		choice = strings.TrimSpace(choice)
+//Other Functions HERE Stop
 
-		switch choice {
-		case "1":
-			fmt.Print("Enter username: ")
-			username, _ := reader.ReadString('\n')
-			username = strings.TrimSpace(username)
-			fmt.Print("Enter password: ")
-			password, _ := reader.ReadString('\n')
-			password = strings.TrimSpace(password)
-			fmt.Println(engine.RegisterUser(username, password))
-		case "2":
-			fmt.Print("Enter subreddit name: ")
-			name, _ := reader.ReadString('\n')
-			name = strings.TrimSpace(name)
-			fmt.Print("Enter creator username: ")
-			creator, _ := reader.ReadString('\n')
-			creator = strings.TrimSpace(creator)
-			fmt.Println(engine.CreateSubreddit(name, creator))
-		case "3":
-			fmt.Print("Enter subreddit name: ")
-			subreddit, _ := reader.ReadString('\n')
-			subreddit = strings.TrimSpace(subreddit)
-			fmt.Print("Enter author username: ")
-			author, _ := reader.ReadString('\n')
-			author = strings.TrimSpace(author)
-			fmt.Print("Enter post content: ")
-			content, _ := reader.ReadString('\n')
-			content = strings.TrimSpace(content)
-			fmt.Println(engine.CreatePost(subreddit, author, content))
-		case "4":
-			fmt.Print("Enter post ID: ")
-			postIDStr, _ := reader.ReadString('\n')
-			postID, _ := strconv.Atoi(strings.TrimSpace(postIDStr))
-			fmt.Print("Enter author username: ")
-			author, _ := reader.ReadString('\n')
-			author = strings.TrimSpace(author)
-			fmt.Print("Enter comment content: ")
-			content, _ := reader.ReadString('\n')
-			content = strings.TrimSpace(content)
-			fmt.Println(engine.AddComment(postID, author, content))
-		case "5":
-			fmt.Print("Enter comment ID: ")
-			commentIDStr, _ := reader.ReadString('\n')
-			commentID, _ := strconv.Atoi(strings.TrimSpace(commentIDStr))
-			fmt.Print("Enter author username: ")
-			author, _ := reader.ReadString('\n')
-			author = strings.TrimSpace(author)
-			fmt.Print("Enter reply content: ")
-			content, _ := reader.ReadString('\n')
-			content = strings.TrimSpace(content)
-			fmt.Println(engine.ReplyToComment(commentID, author, content))
-		case "6":
-			fmt.Print("Enter subreddit name: ")
-			subreddit, _ := reader.ReadString('\n')
-			subreddit = strings.TrimSpace(subreddit)
-			fmt.Println(engine.GetFeed(subreddit))
-		case "7":
-			fmt.Print("Enter post ID: ")
-			postIDStr, _ := reader.ReadString('\n')
-			postID, _ := strconv.Atoi(strings.TrimSpace(postIDStr))
-			fmt.Print("Enter username: ")
-			username, _ := reader.ReadString('\n')
-			username = strings.TrimSpace(username)
-			fmt.Print("Enter vote (1 for upvote, -1 for downvote): ")
-			voteStr, _ := reader.ReadString('\n')
-			vote, _ := strconv.Atoi(strings.TrimSpace(voteStr))
-			fmt.Println(engine.VotePost(username, postID, vote))
-		case "8":
-			fmt.Print("Enter sender username: ")
-			sender, _ := reader.ReadString('\n')
-			sender = strings.TrimSpace(sender)
-			fmt.Print("Enter recipient username: ")
-			recipient, _ := reader.ReadString('\n')
-			recipient = strings.TrimSpace(recipient)
-			fmt.Print("Enter message content: ")
-			content, _ := reader.ReadString('\n')
-			content = strings.TrimSpace(content)
-			fmt.Println(engine.SendMessage(sender, recipient, content))
-		case "9":
-			fmt.Print("Enter username: ")
-			username, _ := reader.ReadString('\n')
-			username = strings.TrimSpace(username)
-			fmt.Println(engine.ListMessages(username))
-		case "10":
-			fmt.Print("Enter username: ")
-			username, _ := reader.ReadString('\n')
-			username = strings.TrimSpace(username)
-			fmt.Print("Enter connection status (true for connect, false for disconnect): ")
-			statusStr, _ := reader.ReadString('\n')
-			connected, _ := strconv.ParseBool(strings.TrimSpace(statusStr))
-			fmt.Println(engine.SimulateConnection(username, connected))
-		case "11":
-			fmt.Println(engine.SimulateZipfDistribution())
-		case "12":
-			fmt.Println("Exiting...")
-			return
-		default:
-			fmt.Println("Invalid choice, please try again.")
-		}
-	}
+// Utility Function to Write JSON Response
+func writeResponse(w http.ResponseWriter, response string) {
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"message": response})
 }
 
+
+// Main Function to Start the Server
 func main() {
 	engine := NewEngine()
-	mainMenu(engine)
+
+	http.HandleFunc("/register", engine.RegisterUserHandler) //POST http://localhost:8080/register?username=user1&password=pass123
+	http.HandleFunc("/create_subreddit", engine.CreateSubredditHandler) //POST http://localhost:8080/create_subreddit?name=golang&creator=user1
+	http.HandleFunc("/create_post", engine.CreatePostHandler) //POST http://localhost:8080/create_post?subreddit=golang&author=user1&content=HelloWorld
+	http.HandleFunc("/add_comment", engine.AddCommentHandler) //POST http://localhost:8080/add_comment?postID=1&author=user1&content=NicePost
+	http.HandleFunc("/reply_to_comment", engine.ReplyToCommentHandler) //POST http://localhost:8080/reply_to_comment?commentID=1&author=user1&content=heey
+	//other
+	http.HandleFunc("/get_feed", engine.GetFeedHandler) //GET http://localhost:8080/get_feed?subreddit=golang
+	http.HandleFunc("/vote_post", engine.VotePostHandler) //POST http://localhost:8080/vote_post?username=user1&postID=1&vote=1
+	http.HandleFunc("/send_message", engine.SendMessageHandler) //POST http://localhost:8080/send_message?sender=user1&recipient=user1&content=Hey there!
+	http.HandleFunc("/list_messages", engine.ListMessagesHandler) //GET http://localhost:8080/list_messages?username=user1
+	http.HandleFunc("/simulate_connection", engine.SimulateConnectionHandler) //POST http://localhost:8080/simulate_connection?username=user1&connected=true
+	http.HandleFunc("/simulate_zipf_distribution", engine.SimulateZipfDistributionHandler) //POST http://localhost:8080/simulate_zipf_distribution
+
+	fmt.Println("Server is running at http://localhost:8080")
+	http.ListenAndServe(":8080", nil)
 }
