@@ -67,6 +67,21 @@ func NewEngine() *Engine {
 	}
 }
 
+//enabling Cross Site Origin
+func enableCORS(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "http://localhost:3000") // Frontend origin
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		w.Header().Set("Access-Control-Allow-Credentials", "true") 
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		next(w, r)
+	}
+}
+
 // Register User API Endpoint
 func (e *Engine) RegisterUserHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
@@ -503,17 +518,17 @@ func writeResponse(w http.ResponseWriter, response string) {
 func main() {
 	engine := NewEngine()
 
-	http.HandleFunc("/register", engine.RegisterUserHandler) //POST http://localhost:8080/register?username=user1&password=pass123
-	http.HandleFunc("/create_subreddit", engine.CreateSubredditHandler) //POST http://localhost:8080/create_subreddit?name=golang&creator=user1
-	http.HandleFunc("/create_post", engine.CreatePostHandler) //POST http://localhost:8080/create_post?subreddit=golang&author=user1&content=HelloWorld
-	http.HandleFunc("/add_comment", engine.AddCommentHandler) //POST http://localhost:8080/add_comment?postID=1&author=user1&content=NicePost
-	http.HandleFunc("/reply_to_comment", engine.ReplyToCommentHandler) //POST http://localhost:8080/reply_to_comment?commentID=1&author=user1&content=heey
-	http.HandleFunc("/get_feed", engine.GetFeedHandler) //GET http://localhost:8080/get_feed?subreddit=golang
-	http.HandleFunc("/vote_post", engine.VotePostHandler) //POST http://localhost:8080/vote_post?username=user1&postID=1&vote=1
-	http.HandleFunc("/send_message", engine.SendMessageHandler) //POST http://localhost:8080/send_message?sender=user1&recipient=user1&content=Hey there!
-	http.HandleFunc("/list_messages", engine.ListMessagesHandler) //GET http://localhost:8080/list_messages?username=user1
-	http.HandleFunc("/simulate_connection", engine.SimulateConnectionHandler) //POST http://localhost:8080/simulate_connection?username=user1&connected=true
-	http.HandleFunc("/simulate_zipf_distribution", engine.SimulateZipfDistributionHandler) //POST http://localhost:8080/simulate_zipf_distribution
+	http.HandleFunc("/register", enableCORS(engine.RegisterUserHandler)) //POST http://localhost:8080/register?username=user1&password=pass123
+	http.HandleFunc("/create_subreddit", enableCORS(engine.CreateSubredditHandler)) //POST http://localhost:8080/create_subreddit?name=golang&creator=user1
+	http.HandleFunc("/create_post", enableCORS(engine.CreatePostHandler)) //POST http://localhost:8080/create_post?subreddit=golang&author=user1&content=HelloWorld
+	http.HandleFunc("/add_comment", enableCORS(engine.AddCommentHandler)) //POST http://localhost:8080/add_comment?postID=1&author=user1&content=NicePost
+	http.HandleFunc("/reply_to_comment", enableCORS(engine.ReplyToCommentHandler)) //POST http://localhost:8080/reply_to_comment?commentID=1&author=user1&content=heey
+	http.HandleFunc("/get_feed", enableCORS(engine.GetFeedHandler)) //GET http://localhost:8080/get_feed?subreddit=golang
+	http.HandleFunc("/vote_post", enableCORS(engine.VotePostHandler)) //POST http://localhost:8080/vote_post?username=user1&postID=1&vote=1
+	http.HandleFunc("/send_message", enableCORS(engine.SendMessageHandler)) //POST http://localhost:8080/send_message?sender=user1&recipient=user1&content=Hey there!
+	http.HandleFunc("/list_messages", enableCORS(engine.ListMessagesHandler)) //GET http://localhost:8080/list_messages?username=user1
+	http.HandleFunc("/simulate_connection", enableCORS(engine.SimulateConnectionHandler)) //POST http://localhost:8080/simulate_connection?username=user1&connected=true
+	http.HandleFunc("/simulate_zipf_distribution", enableCORS(engine.SimulateZipfDistributionHandler)) //POST http://localhost:8080/simulate_zipf_distribution
 
 	fmt.Println("Server is running at http://localhost:8080")
 	http.ListenAndServe(":8080", nil)
