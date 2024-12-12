@@ -1,9 +1,12 @@
 package main
 
 import (
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
-	"math/rand"
+	"math/big"
 	"net/http"
 	"strconv"
 	"strings"
@@ -14,6 +17,7 @@ type User struct {
 	Username      string
 	Password      string
 	Karma         int
+	PublicKey ecdsa.PublicKey
 	DirectMessages []Message
 }
 
@@ -82,7 +86,22 @@ func enableCORS(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-// Register User API Endpoint
+// // Register User API Endpoint
+// func (e *Engine) RegisterUserHandler(w http.ResponseWriter, r *http.Request) {
+// 	if r.Method != http.MethodPost {
+// 		http.Error(w, "Invalid method", http.StatusMethodNotAllowed)
+// 		return
+// 	}
+// 	username := r.URL.Query().Get("username")
+// 	password := r.URL.Query().Get("password")
+// 	if username == "" || password == "" {
+// 		http.Error(w, "Username and password are required", http.StatusBadRequest)
+// 		return
+// 	}
+// 	response := e.RegisterUser(username, password)
+// 	writeResponse(w, response)
+// }
+
 func (e *Engine) RegisterUserHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Invalid method", http.StatusMethodNotAllowed)
@@ -94,8 +113,24 @@ func (e *Engine) RegisterUserHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Username and password are required", http.StatusBadRequest)
 		return
 	}
-	response := e.RegisterUser(username, password)
-	writeResponse(w, response)
+    response := e.RegisterUser(username, password)
+    if response == "User registered successfully." {
+        // Generate public key
+        privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+        if err != nil {
+            http.Error(w, "Error generating public key", http.StatusInternalServerError)
+            return
+        }
+        publicKey := privateKey.PublicKey
+
+        // Store the public key in the User struct
+        e.Users[username].PublicKey = publicKey
+
+        // Log success message with public key
+        fmt.Println("User", username, "registered successfully. Public Key:", publicKey.X.Text(16), publicKey.Y.Text(16))
+    }
+
+    writeResponse(w, response)
 }
 
 func (e *Engine) RegisterUser(username, password string) string {
@@ -426,6 +461,15 @@ func (e *Engine) SimulateConnection(username string, connected bool) string {
 	return fmt.Sprintf("%s is now disconnected.", username)
 }
 
+func randomInt(max int64) int64 {
+    n, err := rand.Int(rand.Reader, big.NewInt(max))
+    if err != nil {
+        // Handle error, e.g., log the error and return a default value
+        return 0
+    }
+    return n.Int64()
+}
+
 // Simulating Zipf Distribution for Subreddit Membership function
 func (e *Engine) SimulateZipfDistributionHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
@@ -434,6 +478,15 @@ func (e *Engine) SimulateZipfDistributionHandler(w http.ResponseWriter, r *http.
 	}
 	response := e.SimulateZipfDistribution()
 	writeResponse(w, response)
+}
+
+func getRandomIndex(max int) int {
+    n, err := rand.Int(rand.Reader, big.NewInt(int64(max)))
+    if err != nil {
+        // Handle error, e.g., log the error and return a default value
+        return 0
+    }
+    return int(n.Int64())
 }
 
 func (e *Engine) SimulateZipfDistribution() string {
@@ -461,13 +514,13 @@ func (e *Engine) SimulateZipfDistribution() string {
 		// Increasing post frequency for the popular subreddits
 		postCount := members / 10
 		for p := 0; p < postCount; p++ {
-			author := fmt.Sprintf("user_%d", rand.Intn(members)+1)
+			author := fmt.Sprintf("user_%d", randomInt(int64(members))+1)
 			content := fmt.Sprintf("Post %d in %s by %s", postID, subredditName, author)
 			post := &Post{
 				ID:       postID,
 				Author:   author,
 				Content:  content,
-				Votes:    rand.Intn(100), 
+				Votes:    int(randomInt(100)), 
 				Comments: []*Comment{},
 			}
 			e.Subreddits[subredditName].Posts = append(e.Subreddits[subredditName].Posts, post)
@@ -482,11 +535,13 @@ func (e *Engine) SimulateZipfDistribution() string {
 			repostCount := len(subreddit.Posts) / 5 
 			for r := 0; r < repostCount; r++ {
 				// Randomly selecting a post from another subreddit
-				sourceSubredditName := fmt.Sprintf("subreddit_%d", rand.Intn(10)+1)
+				sourceSubredditName := fmt.Sprintf("subreddit_%d", randomInt(int64(10))+1)
 				if sourceSubredditName != subreddit.Name {
 					sourceSubreddit := e.Subreddits[sourceSubredditName]
 					if len(sourceSubreddit.Posts) > 0 {
-						randomPost := sourceSubreddit.Posts[rand.Intn(len(sourceSubreddit.Posts))]
+						// randomPost := sourceSubreddit.Posts[rand.Intn(len(sourceSubreddit.Posts))]
+						randomIndex := getRandomIndex(len(sourceSubreddit.Posts))
+						randomPost := sourceSubreddit.Posts[randomIndex]
 						repost := &Post{
 							ID:       postID,
 							Author:   randomPost.Author,
