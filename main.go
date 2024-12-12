@@ -170,6 +170,8 @@ func (e *Engine) CreateSubreddit(name, creator string) string {
 		Members: map[string]bool{creator: true},
 		Posts:   []*Post{},
 	}
+	// Log the creation of the subreddit
+    fmt.Printf("Subreddit '%s' created by '%s'\n", name, creator)
 	return "Subreddit created successfully."
 }
 
@@ -205,6 +207,9 @@ func (e *Engine) CreatePost(subreddit, author, content string) string {
 	}
 	e.Subreddits[subreddit].Posts = append(e.Subreddits[subreddit].Posts, post)
 	e.Posts[e.PostID] = post
+	// Log the creation of the post
+    fmt.Printf("Post with ID %d created in subreddit '%s' by '%s'\n", e.PostID, subreddit, author)
+
 	return fmt.Sprintf("Post created successfully with ID %d.", e.PostID)
 }
 
@@ -245,6 +250,8 @@ func (e *Engine) AddComment(postID int, author, content string) string {
 	}
 	e.Posts[postID].Comments = append(e.Posts[postID].Comments, comment)
 	e.Comments[e.CommentID] = comment
+	// Log the creation of the comment
+    fmt.Printf("Comment with ID %d added to post %d by '%s'\n", e.CommentID, postID, author)
 	return fmt.Sprintf("Comment added successfully with ID %d.", e.CommentID)
 }
 
@@ -285,6 +292,9 @@ func (e *Engine) ReplyToComment(commentID int, author, content string) string {
 	}
 	e.Comments[commentID].Replies = append(e.Comments[commentID].Replies, reply)
 	e.Comments[e.CommentID] = reply
+	// Log the creation of the reply
+    fmt.Printf("Reply with ID %d added to comment %d by '%s'\n", e.CommentID, commentID, author)
+
 	return fmt.Sprintf("Reply added successfully with ID %d.", e.CommentID)
 }
 
@@ -396,6 +406,8 @@ func (e *Engine) SendMessage(sender, recipient, content string) string {
 	}
 	message := Message{Sender: sender, Content: content}
 	e.Users[recipient].DirectMessages = append(e.Users[recipient].DirectMessages, message)
+	// Log the sent message
+    fmt.Printf("Message sent from '%s' to '%s': '%s'\n", sender, recipient, content)
 	return "Message sent successfully."
 }
 
